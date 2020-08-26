@@ -4,21 +4,23 @@ from scrapy.http import Request
 from scrapy.loader import ItemLoader
 from scraper_web.items import PaintingItem
 
+
 class ExtractURLFromWikiCategorySpider(CrawlSpider):
     name = "Painting_Wiki"
     allowed_domains = ["wikipedia.org"]
     base_url = "https://en.wikipedia.org"
-    start_urls = ["https://en.wikipedia.org/wiki/Category:Portraits_by_French_artists"]
-    bannished_urls = [
-        "https://en.wikipedia.org/wiki/Category:Commons_category_link_is_on_Wikidata",
-        "https://en.wikipedia.org/wiki/Category:Categories_requiring_diffusion",
-    ]
+    start_urls = ["https://en.wikipedia.org/wiki/Category:Paintings"]
     rules = (
         Rule(
             LinkExtractor(
-                allow="https://en.wikipedia.org/wiki/Category",
-                deny=bannished_urls,
-                # canonicalize=True,
+                allow=[
+                    "https://en.wikipedia.org/wiki/Category",
+                    "https://en.wikipedia/w",
+                ],
+                deny=[
+                    "https://en.wikipedia.org/wiki/Category:Commons_category_link_is_on_Wikidata",
+                    "https://en.wikipedia.org/wiki/Category:Categories_requiring_diffusion",
+                ],
                 unique=True,
                 restrict_css=[
                     "div.mw-category-group a",
@@ -32,10 +34,7 @@ class ExtractURLFromWikiCategorySpider(CrawlSpider):
     )
 
     def parse_start_url(self, response):
-        return Request(
-            url=self.start_urls[0],
-            callback=self.parse_category,
-        )
+        return Request(url=self.start_urls[0], callback=self.parse_category,)
 
     def parse_category(self, response):
         for link in response.css(".mw-category-group a") or response.css(
@@ -43,31 +42,36 @@ class ExtractURLFromWikiCategorySpider(CrawlSpider):
         ):
             href = link.attrib["href"]
             url = self.base_url + href
-            if any(s in href for s in ("Category:","File:","Wikipedia:")):
+            if any(s in href for s in ("Category:", "File:", "Wikipedia:")):
                 continue
-            elif ("/List_of") in href:
-                yield Request(url, callable=self.parse_list)
-            else:
-                yield Request(url, callback=self.parse_page)
-            # yield {"href": link.attrib["href"]}
+            # elif ("/List_of") in href:
+            #     # yield Request(url, callable=self.parse_list)
+            # else:
+            #     yield Request(url, callback=self.parse_page)
+            yield {"href": link.attrib["href"]}
 
     def parse_page(self, response):
-        loader = ItemLoader(item=PaintingItem(), selector=response.css("table.infobox "), response=response)
-        loader.add_value('title',response.css("h1#firstHeading *::text").getall() )
-        loader.add_value('wiki_url', response.url)
-        loader.add_xpath('artist',self.get_xpath_infobox_row("Artist"))
-        loader.add_xpath('year',self.get_xpath_infobox_row("Year"))
-        loader.add_xpath('medium',self.get_xpath_infobox_row("Medium"))
-        loader.add_xpath('location',self.get_xpath_infobox_row("Location"))
-        loader.add_xpath('dimensions',self.get_xpath_infobox_row("Dimensions"))
+        loader = ItemLoader(
+            item=PaintingItem(),
+            selector=response.css("table.infobox "),
+            response=response,
+        )
+        loader.add_value("title", response.css("h1#firstHeading *::text").getall())
+        loader.add_value("wiki_url", response.url)
+        loader.add_xpath("artist", self.get_xpath_infobox_row("Artist"))
+        loader.add_xpath("year", self.get_xpath_infobox_row("Year"))
+        loader.add_xpath("medium", self.get_xpath_infobox_row("Medium"))
+        loader.add_xpath("location", self.get_xpath_infobox_row("Location"))
+        loader.add_xpath("dimensions", self.get_xpath_infobox_row("Dimensions"))
         yield loader.load_item()
 
     def parse_list(self, response):
         pass
 
     def get_xpath_infobox_row(self, string):
-        return "".join(['//th[starts-with(text(),"', string, '")]/../descendant::text()'])
-
+        return "".join(
+            ['//th[starts-with(text(),"', string, '")]/../descendant::text()']
+        )
 
     #  def parse_page_infobox(self, response):
     #     envart = response.css("table.infobox ")
@@ -82,7 +86,6 @@ class ExtractURLFromWikiCategorySpider(CrawlSpider):
     #     data["Dimensions"] = self.get_row_box_text(envart, "Dimensions")
     #     data["Location"] = self.get_row_box_text(envart, "Location")
     #     yield data
-
 
     # def get_row_box_text(self, content, string):
     #     text = content.xpath(
